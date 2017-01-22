@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-
 Dependencies:
+A UNIX like shell must be available
 pip install (--user) numpy
 pip install (--user) editdistance
 pip install (--user) Polygon2
@@ -131,7 +131,7 @@ def getFSNSMetrics(gtIdTransDict,methodIdTransDict):
 
 
 def getPixelIoU(gtImg,submImg):
-    #TODO TEST
+    #TODO TEST THOROUGHLY
     def compress(img):
         intImg=np.empty(img.shape[:2],dtype='int32')
         if len(img.shape)==3:
@@ -189,7 +189,29 @@ def getEditDistanceMat(gtTranscriptions,sampleTranscriptions):
     return distMat/maxSizeMat,distMat
 
 
-def get2PointIoU(gtMat,resMat):
+def maskNonMaximalIoU(IoU,axis=1):
+    """Generates a mask so that multiple recognitions of 
+    can be removed from an IoU matrix.
+    
+    Args:
+        IoU: a matrix where each row is a groundtrouth object and each column
+        a retrived object, the cells contain the IoU ratio of objects
+        axis: whether columns or rows should be masked.
+    
+    Returns: a matrix with ones only on maximum cells either column wise or row
+    wise.
+    """
+    res=np.zeros(IoU.shape)
+    if axis==0:
+        res[np.arange(res.shape[0],dtype='int32'),IoU.argmax(axis=1)]=1
+    elif axis==1:
+        res[IoU.argmax(axis=0),np.arange(res.shape[1],dtype='int32')]=1
+    else:
+        raise Exception('Axis must be 0 or 1')
+    return res
+
+
+def get2PointIoU(gtMat,resMat,suppresAxis=[1]):
     gtMat=convLTRB2LTWH(gtMat)
     resMat=convLTRB2LTWH(resMat)
     gtLeft=numpy.matlib.repmat(gtMat[:,0],resMat.shape[0],1)
@@ -228,13 +250,13 @@ def loadBBoxTranscription(fname,**kwargs):
         resBoxes=np.empty([len(lines),4],dtype='int32')
         resTranscriptions=np.empty(len(lines), dtype=object)
         for k in range(len(lines)):
-            resBoxes[k,:]=[int(c) for c in lines[k][:4]]
+            resBoxes[k,:]=[int(float(c)) for c in lines[k][:4]]
             resTranscriptions[k]=','.join(lines[k][4:])
     elif colFound==8:
         resBoxes=np.empty([len(lines),8],dtype='int32')
         resTranscriptions=np.empty(len(lines), dtype=object)
         for k in range(len(lines)):
-            resBoxes[k,:]=[int(c) for c in lines[k][:8]]
+            resBoxes[k,:]=[int(float(c)) for c in lines[k][:8]]
             resTranscriptions[k]=','.join(lines[k][8:])
     else:
         sys.stderr.write('Cols found '+str(colFound)+'\n')
@@ -242,8 +264,19 @@ def loadBBoxTranscription(fname,**kwargs):
         raise Exception('Wrong columns found')
     return (resBoxes,resTranscriptions)
 
-    
-def get4pEndToEndMetric(gtSubmFnameTuples):
+
+def filterDontCares(IoU,edDist,gtTrans,dontCare):
+    removeGt=np.where(gtTrans==dontCare)
+    highestIoUPos=np.argmax(IoU,axis=0)
+    removeSubm=[k for k in range(IoU.shape[1]) if highestIoUPos[k] in removeGt]
+    IoU=np.delete(np.delete(IoU,removeSubm,axis=1),removeGt,axis=0)
+    edDist=np.delete(np.delete(edDist,removeSubm,axis=1),removeGt,axis=0)
+    return IoU,edDist
+
+
+def get4pEndToEndMetric(gtSubmFnameTuples,**kwargs):
+    p={'dontCare':'###','iouThr':.5,'maxEdist':0}
+    p.update(kwargs)
     allRelevant=0
     allRetrieved=0
     correct=0
@@ -252,17 +285,20 @@ def get4pEndToEndMetric(gtSubmFnameTuples):
         submLoc,submTrans=loadBBoxTranscription(submFname)
         IoU=get4pointIoU(gtLoc,submLoc)[0]
         edDist=getEditDistanceMat(gtTrans,submTrans)[0]
-        allRelevant+=gtLoc.shape[0]
-        allRetrieved+=submLoc.shape[0]
-        correct+=np.sum((IoU>=.5)*(edDist==0))
+        if p['dontCare']!='':
+            IoU,edDist=filterDontCares(IoU,edDist,gtTrans,p['dontCare'])
+        allRelevant+=IoU.shape[0]
+        allRetrieved+=IoU.shape[1]
+        correct+=np.sum((IoU>=p['iouThr'])*(edDist<=p['maxEdist'])*maskNonMaximalIoU(IoU,1))
     precision=float(correct)/allRetrieved
     recall=float(correct)/allRelevant
     FM=(2*precision*recall)/(precision+recall+.00000000000001)
     return FM,precision,recall
 
     
-def get2pEndToEndMetric(gtSubmFnameTuples):
-    #TODO remove from evaluation as is also visualisation
+def get2pEndToEndMetric(gtSubmFnameTuples,**kwargs):
+    p={'dontCare':'###','iouThr':.5,'maxEdist':0}
+    p.update(kwargs)
     allRelevant=0
     allRetrieved=0
     correct=0
@@ -275,15 +311,18 @@ def get2pEndToEndMetric(gtSubmFnameTuples):
             submLoc=conv4pointToLTBR(submLoc)
         IoU=get2PointIoU(gtLoc,submLoc)[0]
         edDist=getEditDistanceMat(gtTrans,submTrans)[0]
-        allRelevant+=gtLoc.shape[0]
-        allRetrieved+=submLoc.shape[0]
-        correct+=np.sum((IoU>=.5)*(edDist==0))
+        if p['dontCare']!='':
+            'DONTCARE'
+            IoU,edDist=filterDontCares(IoU,edDist,gtTrans,p['dontCare'])
+        allRelevant+=IoU.shape[0]
+        allRetrieved+=IoU.shape[1]
+        correct+=np.sum((IoU>=p['iouThr'])*(edDist<=p['maxEdist'])*maskNonMaximalIoU(IoU,1))
     precision=float(correct)/allRetrieved
     recall=float(correct)/allRelevant
     FM=(2*precision*recall)/(precision+recall+.00000000000001)
     return FM,precision,recall
 
-    
+
 def plotRectangles(rects,transcriptions,bgrImg,rgbCol):
     bgrCol=np.array(rgbCol)[[2,1,0]]
     res=bgrImg.copy()
@@ -308,6 +347,7 @@ def plotRectangles(rects,transcriptions,bgrImg,rgbCol):
 
 
 def getReport(imgGtSubmFnames,**kwargs):
+    #TODO FIX UGLY FIX
     """imgGtSubmFnames is a list of tuples with three strings:
        The first one is the path to the input image
        The second is the path to the 4point+transcription Gt
@@ -320,7 +360,7 @@ def getReport(imgGtSubmFnames,**kwargs):
     allCare=[]
     accDict={}
     if os.path.exists(p['outReportDir']):
-        raise Exception('Output directory must no exist')
+        raise Exception('Output directory must not exist')
     go('mkdir -p '+p['outReportDir'])
     startTime=time.time()
     for inImgFname,gtFname,submFname in imgGtSubmFnames:
@@ -351,16 +391,28 @@ def getReport(imgGtSubmFnames,**kwargs):
         resTbl+='</td> <td>'.join([s for s in transcrGt])+'</tb></tr>\n'
         for k in range(IoU.shape[0]):
             resTbl+='<tr><td>'+transcrSubm[k]+'</td><td>'
-            resTbl+='</td><td>'.join([str(int(k*10000)/100.0) for k in IoU[k,:]*strEqual[k,:]])+'</td></tr>\n'
+            #resTbl+='</td><td>'.join([str(int(k*10000)/100.0) for k in IoU[k,:]*strEqual[k,:]])+'</td></tr>\n'
+            resTbl+='</td><td>Exception thrown</td></tr>\n'#UGLY FIX
         resTbl+='</table>\n'
         resHtml='<html><body>\n<h3>'+inImgFname.split('/')[-1].split('.')[0]+'</h3>\n'
-        
-        acc=((IoU*strEqual).sum()/float(IoU.shape[1]))
+        acc=0
+        try:
+            acc=((IoU*strEqual).sum()/float(IoU.shape[1]))#UGLYFIX
+        except:
+            pass
         if p['dontCare']!='':
-            precision=(IoU*strEqual).max(axis=1)[(strCare*IoU).sum(axis=1)>0].mean()
+            precision=np.nan
+            try:
+                precision=(IoU*strEqual).max(axis=1)[(strCare*IoU).sum(axis=1)>0].mean()#UGLY FIX
+            except:
+                pass
             if np.isnan(precision):
                 precision=0
-            recall=(IoU*strEqual).max(axis=0)[(strCare).sum(axis=0)>0].mean()
+            recall=np.nan
+            try:
+                recall=(IoU*strEqual).max(axis=0)[(strCare).sum(axis=0)>0].mean()#UGLY FIX
+            except:
+                pass
             if np.isnan(recall):
                 recall=0
         else:
@@ -384,11 +436,12 @@ def getReport(imgGtSubmFnames,**kwargs):
     strCare=np.zeros([submSize,gtSize])
     gtIdx=0
     submIdx=0
+    gt
     for k in range(len(allIoU)):
         submSize,gtSize=allIoU[k].shape
         IoU[submIdx:submIdx+submSize,gtIdx:gtIdx+gtSize]=allIoU[k]
-        strEqual[submIdx:submIdx+submSize,gtIdx:gtIdx+gtSize]=allEqual[k]
-        strCare[submIdx:submIdx+submSize,gtIdx:gtIdx+gtSize]=allCare[k]
+        strEqual[submIdx:submIdx+submSize,gtIdx:gtIdx+gtSize]=allEqual[k].T
+        strCare[submIdx:submIdx+submSize,gtIdx:gtIdx+gtSize]=allCare[k].T
         gtIdx+=gtSize
         submIdx+=submSize
     acc=((IoU*strEqual).sum()/float(IoU.shape[1]))
@@ -457,22 +510,23 @@ if __name__=='__main__':
     if sys.argv[1]=='icdarCh4Task4':
         gtFnameLambda = (lambda fname:(sys.argv[2]%(fname.split('/')[-1].split('.')[0])))
         gtSampleNameTuples=[(gtFnameLambda(f),f) for f in sys.argv[3:]]
-        fm,pr,rec=get4pEndToEndMetric(gtSampleNameTuples)
+        fm,pr,rec=get4pEndToEndMetric(gtSampleNameTuples,dontCare='###')
         print 'Precision: %3.2f\nRecall   : %3.2f\nF-Measure: %3.2f'%(pr,rec,fm)
         sys.exit(0)
 
     if sys.argv[1]=='icdarCh2Task4':
         gtFnameLambda = (lambda fname:(sys.argv[2]%(fname.split('/')[-1].split('.')[0])))
         gtSampleNameTuples=[(gtFnameLambda(f),f) for f in sys.argv[3:]]
-        fm,pr,rec=get2pEndToEndMetric(gtSampleNameTuples)
+        fm,pr,rec=get2pEndToEndMetric(gtSampleNameTuples,dontCare='###')
         print 'Precision: %3.2f\nRecall   : %3.2f\nF-Measure: %3.2f'%(pr,rec,fm)
         sys.exit(0)
 
     if sys.argv[1]=='getFCNReport':
         outDir=sys.argv[2]
-        gtDir=sys.argv[3]
-        submFiles=sys.argv[4:]
-        imgGtSubmFnames=[(gtDir+f.split('/')[-1].split('.')[0]+'.jpg',gtDir+f.split('/')[-1].split('.')[0]+'.txt',f) for f in submFiles]
+        gtPat=sys.argv[3]
+        imgPat=sys.argv[4]
+        submFiles=sys.argv[5:]
+        imgGtSubmFnames=[((imgPat%(f.split('/')[-1].split('.')[0])),(gtPat%(f.split('/')[-1].split('.')[0])),f) for f in submFiles]
         getReport(imgGtSubmFnames,dontCare='###',outReportDir=outDir)
         sys.exit(0)
 

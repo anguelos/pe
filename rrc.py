@@ -201,6 +201,8 @@ def maskNonMaximalIoU(IoU,axis=1):
     Returns: a matrix with ones only on maximum cells either column wise or row
     wise.
     """
+    if IoU.shape[0]==0 or IoU.shape[1]==0:
+        return np.zeros(IoU.shape)
     res=np.zeros(IoU.shape)
     if axis==0:
         res[np.arange(res.shape[0],dtype='int32'),IoU.argmax(axis=1)]=1
@@ -266,9 +268,13 @@ def loadBBoxTranscription(fname,**kwargs):
 
 
 def filterDontCares(IoU,edDist,gtTrans,dontCare):
-    removeGt=np.where(gtTrans==dontCare)
+    """Removes rows and columns from a 
+    """
+    if edDist is None:
+        edDist=np.empty(IoU.shape)
+    removeGt=np.where(gtTrans==dontCare)[0].tolist()
     highestIoUPos=np.argmax(IoU,axis=0)
-    removeSubm=[k for k in range(IoU.shape[1]) if highestIoUPos[k] in removeGt]
+    removeSubm=[k for k in range(IoU.shape[1]) if (highestIoUPos[k] in removeGt)]
     IoU=np.delete(np.delete(IoU,removeSubm,axis=1),removeGt,axis=0)
     edDist=np.delete(np.delete(edDist,removeSubm,axis=1),removeGt,axis=0)
     return IoU,edDist

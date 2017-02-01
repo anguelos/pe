@@ -1,0 +1,223 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Dependencies:
+A UNIX like shell must be available
+pip install (--user) numpy
+pip install (--user) editdistance
+pip install (--user) Polygon2
+pip install (--user) Pillow (if cv2 is not available)
+"""
+import numpy.matlib
+import numpy as np
+#import re
+import sys
+#import time
+#import json
+#import os
+#from commands import getoutput as go #fast access to the shell
+
+import Polygon as plg
+import editdistance
+
+import rrcio
+
+def getPixelIoU(gtImg,submImg):
+    #TODO TEST THOROUGHLY
+    def compress(img):
+        intImg=np.empty(img.shape[:2],dtype='int32')
+        if len(img.shape)==3:
+            intImg[:,:]=img[:,:,0]
+            intImg[:,:]+=(256*img[:,:,1])
+            intImg[:,:]+=((256**2)*img[:,:,1])
+        else:
+            intImg[:,:]=img[:,:]
+        un=np.unique(intImg)
+        idx=np.zeros(un.max()+1)
+        idx[un]=np.arange(un.shape[0],dtype='int32')
+        return idx[intImg],un.max()+1
+    if gtImg.shape[:2]!=submImg[:2]:
+        raise Exception("gtImg and submImg must have the same size")
+    gt,maxGt=compress(gtImg)
+    subm,maxSubm=compress(gtImg)
+    comb=gt*maxSubm+subm
+    intMatrix=np.bincount(comb.reshape(-1)).reshape([maxSubm,maxGt])
+    uMatrix=np.zeros(intMatrix.shape)
+    uMatrix[:,:]+=intMatrix.sum(axis=0)[None,:]
+    uMatrix[:,:]+=intMatrix.sum(axis=1)[:,None]
+    uMatrix-=intMatrix    
+    return intMatrix/uMatrix.astype('float64'),intMatrix,uMatrix
+
+
+def get4pointIoU(gtMat,sampleMat):
+    iMat=np.zeros([gtMat.shape[0],sampleMat.shape[0]])
+    uMat=np.zeros([gtMat.shape[0],sampleMat.shape[0]])
+    gtAreas=np.zeros(gtMat.shape[0])
+    gtPolList=[]
+    gtAreas=np.zeros(gtMat.shape[0])
+    for gtPolNum in range(gtMat.shape[0]):
+        gtPolList.append(plg.Polygon(gtMat[gtPolNum].reshape([2,-1]).T))
+        gtAreas[gtPolNum]=gtPolList[-1].area()
+    samplePolList=[]
+    sampleAreas=np.zeros(sampleMat.shape[0])
+    for samplePolNum in range(sampleMat.shape[0]):
+        samplePolList.append(plg.Polygon(sampleMat[samplePolNum].reshape([2,-1]).T))
+        sampleAreas[samplePolNum]=samplePolList[-1].area()
+    for submPolNum in range(sampleMat.shape[0]):
+        for gtPolNum in range(gtMat.shape[0]):
+            iMat[gtPolNum,submPolNum]=(samplePolList[submPolNum]&(samplePolList[submPolNum])).area()
+            uMat[gtPolNum,submPolNum]=(samplePolList[submPolNum]|(samplePolList[submPolNum])).area()
+    return [iMat/(uMat+.0000000000000001),iMat,uMat]
+
+
+def getEditDistanceMat(gtTranscriptions,sampleTranscriptions):
+    outputShape=[len(gtTranscriptions),len(sampleTranscriptions)]
+    distMat=np.empty(outputShape)
+    maxSizeMat=np.empty(outputShape)
+    for gtNum in range(len(gtTranscriptions)):
+        for sampleNum in range(len(sampleTranscriptions)):
+            distMat[gtNum,sampleNum]=editdistance.eval(gtTranscriptions[gtNum],sampleTranscriptions[sampleNum])
+            maxSizeMat[gtNum,sampleNum]=max(len(gtTranscriptions[gtNum]),len(sampleTranscriptions[sampleNum]))
+    return distMat/maxSizeMat,distMat
+
+
+def maskNonMaximalIoU(IoU,axis=1):
+    """Generates a mask so that multiple recognitions of 
+    can be removed from an IoU matrix.
+    
+    Args:
+        IoU: a matrix where each row is a groundtrouth object and each column
+        a retrived object, the cells contain the IoU ratio of objects
+        axis: whether columns or rows should be masked.
+    
+    Returns: a matrix with ones only on maximum cells either column wise or row
+    wise.
+    """
+    if IoU.shape[0]==0 or IoU.shape[1]==0:
+        return np.zeros(IoU.shape)
+    res=np.zeros(IoU.shape)
+    if axis==0:
+        res[np.arange(res.shape[0],dtype='int32'),IoU.argmax(axis=1)]=1
+    elif axis==1:
+        res[IoU.argmax(axis=0),np.arange(res.shape[1],dtype='int32')]=1
+    else:
+        raise Exception('Axis must be 0 or 1')
+    return res
+
+
+def get2PointIoU(gtMatLTWH,resMatLTWH,suppresAxis=[1]):
+    #gtMat=convLTRB2LTWH(gtMat)
+    #resMat=convLTRB2LTWH(resMat)
+    gtMat=gtMatLTWH
+    resMat=resMatLTWH
+    gtLeft=numpy.matlib.repmat(gtMat[:,0],resMat.shape[0],1)
+    gtTop=numpy.matlib.repmat(gtMat[:,1],resMat.shape[0],1)
+    gtRight=numpy.matlib.repmat(gtMat[:,0]+gtMat[:,2]-1,resMat.shape[0],1)
+    gtBottom=numpy.matlib.repmat(gtMat[:,1]+gtMat[:,3]-1,resMat.shape[0],1)
+    gtWidth=numpy.matlib.repmat(gtMat[:,2],resMat.shape[0],1)
+    gtHeight=numpy.matlib.repmat(gtMat[:,3],resMat.shape[0],1)
+    resLeft=numpy.matlib.repmat(resMat[:,0],gtMat.shape[0],1).T
+    resTop=numpy.matlib.repmat(resMat[:,1],gtMat.shape[0],1).T
+    resRight=numpy.matlib.repmat(resMat[:,0]+resMat[:,2]-1,gtMat.shape[0],1).T
+    resBottom=numpy.matlib.repmat(resMat[:,1]+resMat[:,3]-1,gtMat.shape[0],1).T
+    resWidth=numpy.matlib.repmat(resMat[:,2],gtMat.shape[0],1).T
+    resHeight=numpy.matlib.repmat(resMat[:,3],gtMat.shape[0],1).T
+    intL=np.max([resLeft,gtLeft],axis=0)
+    intT=np.max([resTop,gtTop],axis=0)
+    intR=np.min([resRight,gtRight],axis=0)
+    intB=np.min([resBottom,gtBottom],axis=0)
+    intW=(intR-intL)+1
+    intW[intW<0]=0
+    intH=(intB-intT)+1
+    intH[intH<0]=0
+    #TODO fix the following transpose
+    I=(intH*intW).T
+    U=resWidth.T*resHeight.T+gtWidth.T*gtHeight.T-I
+    IoU=I/(U+.0000000001)
+    return (IoU,I,U)
+
+
+def filterDontCares(IoU,edDist,gtTrans,dontCare):
+    """Removes rows and columns from a 
+    """
+    if edDist is None:
+        edDist=np.empty(IoU.shape)
+    removeGt=np.where(gtTrans==dontCare)[0].tolist()
+    highestIoUPos=np.argmax(IoU,axis=0)
+    removeSubm=[k for k in range(IoU.shape[1]) if (highestIoUPos[k] in removeGt)]
+    IoU=np.delete(np.delete(IoU,removeSubm,axis=1),removeGt,axis=0)
+    edDist=np.delete(np.delete(edDist,removeSubm,axis=1),removeGt,axis=0)
+    return IoU,edDist
+
+
+def get4pEndToEndMetric(gtSubmFdataTuples,**kwargs):
+    p={'dontCare':'###','iouThr':.5,'maxEdist':0}
+    p.update(kwargs)
+    allRelevant=0
+    allRetrieved=0
+    correct=0
+    for gtStr,submStr in gtSubmFdataTuples:
+        gtLoc,gtTrans=rrcio.loadBBoxTranscription(gtStr)
+        submLoc,submTrans=rrcio.loadBBoxTranscription(submStr)
+        IoU=get4pointIoU(gtLoc,submLoc)[0]
+        edDist=getEditDistanceMat(gtTrans,submTrans)[0]
+        if p['dontCare']!='':
+            IoU,edDist=filterDontCares(IoU,edDist,gtTrans,p['dontCare'])
+        allRelevant+=IoU.shape[0]
+        allRetrieved+=IoU.shape[1]
+        correct+=np.sum((IoU>=p['iouThr'])*(edDist<=p['maxEdist'])*maskNonMaximalIoU(IoU,1))
+    precision=float(correct)/allRetrieved
+    recall=float(correct)/allRelevant
+    FM=(2*precision*recall)/(precision+recall+.00000000000001)
+    return FM,precision,recall
+
+    
+def get2pEndToEndMetric(gtSubmFdataTuples,**kwargs):
+    p={'dontCare':'###','iouThr':.5,'maxEdist':0}
+    p.update(kwargs)
+    allRelevant=0
+    allRetrieved=0
+    correct=0
+    for gtStr,submStr in gtSubmFdataTuples:
+        gtLoc,gtTrans=rrcio.loadBBoxTranscription(gtStr)
+        submLoc,submTrans=rrcio.loadBBoxTranscription(submStr)
+        if gtLoc.shape[1]==8:
+            gtLoc=rrcio.conv4pointToLTBR(gtLoc)
+        if submLoc.shape[1]==8:
+            submLoc=rrcio.conv4pointToLTBR(submLoc)
+        IoU=get2PointIoU(gtLoc,submLoc)[0]
+        edDist=getEditDistanceMat(gtTrans,submTrans)[0]
+        if p['dontCare']!='':
+            IoU,edDist=filterDontCares(IoU,edDist,gtTrans,p['dontCare'])
+        allRelevant+=IoU.shape[0]
+        allRetrieved+=IoU.shape[1]
+        correct+=np.sum((IoU>=p['iouThr'])*(edDist<=p['maxEdist'])*maskNonMaximalIoU(IoU,1))
+    precision=float(correct)/allRetrieved
+    recall=float(correct)/allRelevant
+    FM=(2*precision*recall)/(precision+recall+.00000000000001)
+    return FM,precision,recall
+
+
+def getFSNSMetrics(gtIdTransDict,methodIdTransDict):
+    def compareTexts(sampleTxt,gtTxt):
+        relevant=gtTxt.lower().split()
+        retrieved=sampleTxt.lower().split()
+        correct=(set(relevant).intersection(set(retrieved)))
+        res=(len(correct),len(relevant),len(retrieved),relevant!=retrieved)
+        return res
+    mDict={k:'' for k in gtIdTransDict.keys()}
+    mDict.update(methodIdTransDict)
+    methodIdTransDict=mDict
+    methodKeys=methodIdTransDict.keys()
+    gtKeys=gtIdTransDict.keys()
+    if len(methodKeys)!= len(set(methodKeys))  or len(gtKeys)!= len(set(gtKeys)) or len(set(methodKeys)-set(gtKeys))>0 :#gt and method dissagree on samples
+        sys.stderr.write("GT and submission dissagree on the sample ids\n")
+        sys.exit(1)
+    corectRelevantRetrieved=np.zeros([len(gtKeys),4])
+    for k in range(len(gtKeys)):
+        sId=gtKeys[k]
+        corectRelevantRetrieved[k,:]=compareTexts(methodIdTransDict[sId],gtIdTransDict[sId])
+    precision=(corectRelevantRetrieved[:,0].sum()/(corectRelevantRetrieved[:,1].sum()))
+    recall=(corectRelevantRetrieved[:,0].sum()/(corectRelevantRetrieved[:,2].sum()))
+    FM=(2*precision*recall)/(precision+recall)
+    return FM,precision,recall,float(corectRelevantRetrieved[:,3].mean()),corectRelevantRetrieved

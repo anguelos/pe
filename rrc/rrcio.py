@@ -103,15 +103,17 @@ def convLTRB2LTWH(ltrb):
 def loadBBoxTranscription(fileData,**kwargs):
     txt=fileData
     txt=re.sub(r'[^\x00-\x7f]',r'',txt)#removing the magical bytes crap
+    if txt=='':
+        return np.empty([0,8]),[]
     lines=[l.strip().split(',') for l in txt.split('\n') if (len(l.strip())>0)]
     colFound=min([len(l) for l in lines])-1
-    if colFound==4:
+    if colFound>=4 and colFound<8:#THIS is ugly 
         resBoxes=np.empty([len(lines),4],dtype='int32')
         resTranscriptions=np.empty(len(lines), dtype=object)
         for k in range(len(lines)):
             resBoxes[k,:]=[int(float(c)) for c in lines[k][:4]]
             resTranscriptions[k]=','.join(lines[k][4:])
-    elif colFound==8:
+    elif colFound>=8:#THIS is ugly as well
         resBoxes=np.empty([len(lines),8],dtype='int32')
         resTranscriptions=np.empty(len(lines), dtype=object)
         for k in range(len(lines)):

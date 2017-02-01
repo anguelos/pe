@@ -3,8 +3,10 @@
 from bottle import route, run, request
 import tarfile
 from StringIO import StringIO
+import sys;sys.path.append('./')
 import rrc
 import time
+
 
 """
 requirements:
@@ -51,4 +53,4 @@ def getMetric():
 if __name__=='__main__':
     print 'Command line client:\ncurl -F "gtFile=@./data/ch2tsk4/gt.tar.gz" -F "submissionFile=@./data/ch2tsk4/sampleMethod.tar.gz" -F "format=json"   http://127.0.0.1:8080/evaluate'
     print '\nGUI client:\nfirefox http://127.0.0.1:8080\n\nServer running:'
-    run(host='localhost', port=8080, debug=True)
+    run(host='0.0.0.0', port=8080, debug=True)

@@ -31,6 +31,10 @@ import rrcmetrics
 import rrcio
 
 
+def plotSample(img,gtFname,subFname):
+    p={'fig':None,'gt'}
+
+
 def get2pEndToEndVisualisationData(idSubmGt,**kwargs):
     p={'dontCare':'###','iouThr':.5,'maxEdist':0}
     p.update(kwargs)

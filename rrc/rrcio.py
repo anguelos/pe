@@ -15,7 +15,7 @@ import tarfile
 import zipfile
 #from commands import getoutput as go #fast access to the shell
 import re
-import xml.etree.ElementTree
+
 try:
     import cv2
     imwrite=cv2.imwrite
@@ -27,21 +27,64 @@ except:
     imread= lambda filename:numpy.array(pil.Image.open(filename))
 
 
+def readCsv2LTWHTr(fname,**kwargs):
+    """
+    """
+    p={'readConfidence':False,'removeNonASCII':True}
+    p.update(kwargs)
+    txt=open(fname).read()
+    if p['removeNonASCII']:
+        txt=re.sub(r'[^\x00-\x7f]',r'',txt)#removing the magical bytes crap
+    lines=[l.split(',') for l in txt.split('\n') if len(l)>0]
+    transcrVec=np.array([line[4] for line in lines])
+    if p['readConfidence']:
+        LTWHConf=np.array([[float(col) for col in line[:4]]+[float(line[5])] for line in lines])
+        return LTWHConf,transcrVec
+    else:
+        LTWH=np.array([[float(col) for col in line[:4]] for line in lines])
+        return LTWH,transcrVec
+
+
+def readCsv2PolyTrConf(fname):
+    """
+    """
+    p={'readConfidence':False,'removeNonASCII':True,'nbPoints':4}
+    p.update(kwargs)
+    transcrIdx=p['nbPoints']*2
+    txt=open(fname).read()
+    if p['removeNonASCII']:
+        txt=re.sub(r'[^\x00-\x7f]',r'',txt)#removing the magical bytes crap
+    lines=[l.split(',') for l in txt.split('\n') if len(l)>0]
+    transcrVec=np.array([line[4] for line in lines])
+    if p['readConfidence']:
+        LTWHConf=np.array([[float(col) for col in line[:4]]+[float(line[5])] for line in lines])
+        return LTWHConf,transcrVec
+    else:
+        LTWH=np.array([[float(col) for col in line[:4]] for line in lines])
+        return LTWH,transcrVec
+
+    transcrIdx=nbPoints*2
+    lines=[l.split(',') for l in open(fname).read().split('\n') if len(l)>0]
+    polyConf=np.array([[float(col) for col in line[:4]]+[float(line[5])] for line in lines])
+    transcrVec=np.array([line[-1] for line in lines])
+    return LTWHConf,transcrVec
+
+
 
 def convLTRB24point(ltbr):
     """
-    Converts Rectagles defined by the top left corner, and the bottom-right 
-    corner to a quadrilateral defined by 4 points in clockwise order. If more 
-    than 4 columns are passed as input, the will be appended after the 8th 
+    Converts Rectagles defined by the top left corner, and the bottom-right
+    corner to a quadrilateral defined by 4 points in clockwise order. If more
+    than 4 columns are passed as input, the will be appended after the 8th
     column of the returned matrix.
-    
+
     Args:
-        ltbr: An numpy matrix whos columns are the x coordinate of the top-left 
-        corner, the y coordinate of the top-left corner, the x coordinate of 
+        ltbr: An numpy matrix whos columns are the x coordinate of the top-left
+        corner, the y coordinate of the top-left corner, the x coordinate of
         the bottom-right corner, and the y coordinate of bottom-right corner.
 
     Returns:
-        A numpy array where each column is a coordinate of one of the 
+        A numpy array where each column is a coordinate of one of the
         quadrilateral's points in the order x1,y1,x2,y2,x3,y3,x4,y4.
     """
     L=ltbr[:,0]
@@ -57,17 +100,17 @@ def convLTRB24point(ltbr):
 def conv4pointToLTBR(pointMat):
     """
     Converts quadrilaterals to the smallest axis-aligned rectangles defined by
-    the top left  and the bottom-right corners. If more than 8 columns are 
-    passed as input, the will be appended after the 4th column of the returned 
+    the top left  and the bottom-right corners. If more than 8 columns are
+    passed as input, the will be appended after the 4th column of the returned
     matrix.
-    
+
     Args:
-        pointMat: A numpy array where each column is a coordinate of one of the 
+        pointMat: A numpy array where each column is a coordinate of one of the
         quadrilateral's points in the order x1,y1,x2,y2,x3,y3,x4,y4.
 
     Returns:
-        An numpy matrix whos columns are the x coordinate of the top-left 
-        corner, the y coordinate of the top-left corner,  the x coordinate of 
+        An numpy matrix whos columns are the x coordinate of the top-left
+        corner, the y coordinate of the top-left corner,  the x coordinate of
         the bottom-right corner, and the y coordinate of bottom-right corner.
     """
     L=pointMat[:,[0,2,4,6]].min(axis=1)
@@ -108,7 +151,7 @@ def loadBBoxTranscription(fileData,**kwargs):
         return np.empty([0,8]),[]
     lines=[l.strip().split(',') for l in txt.split('\n') if (len(l.strip())>0)]
     colFound=min([len(l) for l in lines])-1
-    if colFound>=4 and colFound<8:#THIS is ugly 
+    if colFound>=4 and colFound<8:#THIS is ugly
         resBoxes=np.empty([len(lines),4],dtype='int32')
         resTranscriptions=np.empty(len(lines), dtype=object)
         for k in range(len(lines)):

@@ -14,6 +14,7 @@ import os
 import time
 from commands import getoutput as go #fast access to the shell
 
+
 try:
     import cv2
     imwrite=cv2.imwrite
@@ -28,6 +29,46 @@ except:
 
 import rrcmetrics
 import rrcio
+
+
+def get2pEndToEndVisualisationData(idSubmGt,**kwargs):
+    p={'dontCare':'###','iouThr':.5,'maxEdist':0}
+    p.update(kwargs)
+    allRelevant=0
+    allRetrieved=0
+    correct=0
+    sampleDict={}
+    for sampleId in idSubmGt.keys():
+        gtStr,submStr = idSubmGt[sampleId]
+        #jsonFile='.'.join(imgPath.split('.')[:-1])+'.json'
+        gtLoc,gtTrans=rrcio.loadBBoxTranscription(gtStr)
+        submLoc,submTrans=rrcio.loadBBoxTranscription(submStr)
+        if gtLoc.shape[1]==8:
+            gtLoc=rrcio.conv4pointToLTBR(gtLoc)
+        if submLoc.shape[1]==8:
+            submLoc=rrcio.conv4pointToLTBR(submLoc)
+        IoU=rrcmetrics.get2PointIoU(gtLoc,submLoc)[0]
+        edDist=rrcmetrics.getEditDistanceMat(gtTrans,submTrans)[0]
+        if p['dontCare']!='':
+            IoU,edDist=rrcmetrics.filterDontCares(IoU,edDist,gtTrans,p['dontCare'])
+        allRelevant+=IoU.shape[0]
+        allRetrieved+=IoU.shape[1]
+        d={}
+        d['iou']=IoU.tolist()
+        d['eddist']=edDist.tolist()
+        d['subm']=[[submLoc[k].tolist(),submTrans[k]] for k in range(len(submTrans))]
+        d['gt']=[[gtLoc[k].tolist(),gtTrans[k]] for k in range(len(gtTrans))]
+        d['correct']=np.sum((IoU>=p['iouThr'])*(edDist<=p['maxEdist'])*rrcmetrics.maskNonMaximalIoU(IoU,1))
+        sampleDict[sampleId]=d
+        correct+=np.sum((IoU>=p['iouThr'])*(edDist<=p['maxEdist'])*rrcmetrics.maskNonMaximalIoU(IoU,1))
+    precision=float(correct)/allRetrieved
+    recall=float(correct)/allRelevant
+    FM=(2*precision*recall)/(precision+recall+.00000000000001)
+    if rrcmetrics.get2pEndToEndMetric(idSubmGt.values())!=(FM,precision,recall):#SANITY AGSAINST rrcmetric.py
+        raise Exception('Visualisation Doesnt match respective metric function')
+    return {'globals':{'fm':FM,'precision':precision,'recall':recall},'persample':sampleDict}
+
+
 
 def plotRectangles(rects,transcriptions,bgrImg,rgbCol):
     bgrCol=np.array(rgbCol)[[2,1,0]]

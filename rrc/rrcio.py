@@ -15,6 +15,7 @@ import tarfile
 import zipfile
 #from commands import getoutput as go #fast access to the shell
 import re
+import xml.etree.ElementTree
 try:
     import cv2
     imwrite=cv2.imwrite
@@ -143,3 +144,21 @@ def packFiledataDicts(*dictionaryList):
     for fileDict in dictionaryList:
         idDictList.append({fname2id(k):fileDict[k] for k in fileDict.keys()})
     return zip(*[[d[k] for k in sorted(d.keys())] for d in idDictList])
+
+
+def loadDetEvalXmlAsLTRBTxtDict(xmlFd):
+    from lxml import objectify
+    root = objectify.fromstring(xmlFd.read())
+    txtDict={}
+    for img in root.image:
+        lines=[[t.attrib.get("x"),t.attrib.get("y"),t.attrib.get("width"),t.attrib.get("height"),t.attrib.get("offset")] for t in img.taggedRectangles.taggedRectangle]
+        lines=[ [l[0],l[1]]+[str(1+int(l[2])-int(l[0])),str(1+int(l[3])-int(l[1]))]+l[4:] for l in lines]
+        LTRBtxt='\n'.join([','.join(l) for l in lines])
+        #rectMat=[[int(c) for c in r[:4]]+r[4:] for r in rects]
+        #rectMat=np.array([[int(c) for c in r[:4]]+r[4:] for r in rects])
+        #print img.imageName
+        #print img.imageName.__dict__.keys()
+        txtDict[str(img.imageName).split('/')[0].split('.')[0]]=LTRBtxt
+    return txtDict
+
+

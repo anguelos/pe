@@ -105,23 +105,23 @@ def maskNonMaximalIoU(IoU,axis=1):
     return res
 
 
-def get2PointIoU(gtMatLTWH,resMatLTWH,suppresAxis=[1]):
+def get2PointIoU(gtMatLTWH,subMatLTWH,suppresAxis=[1]):
     #gtMat=convLTRB2LTWH(gtMat)
     #resMat=convLTRB2LTWH(resMat)
     gtMat=gtMatLTWH
-    resMat=resMatLTWH
-    gtLeft=numpy.matlib.repmat(gtMat[:,0],resMat.shape[0],1)
-    gtTop=numpy.matlib.repmat(gtMat[:,1],resMat.shape[0],1)
-    gtRight=numpy.matlib.repmat(gtMat[:,0]+gtMat[:,2]-1,resMat.shape[0],1)
-    gtBottom=numpy.matlib.repmat(gtMat[:,1]+gtMat[:,3]-1,resMat.shape[0],1)
-    gtWidth=numpy.matlib.repmat(gtMat[:,2],resMat.shape[0],1)
-    gtHeight=numpy.matlib.repmat(gtMat[:,3],resMat.shape[0],1)
-    resLeft=numpy.matlib.repmat(resMat[:,0],gtMat.shape[0],1).T
-    resTop=numpy.matlib.repmat(resMat[:,1],gtMat.shape[0],1).T
-    resRight=numpy.matlib.repmat(resMat[:,0]+resMat[:,2]-1,gtMat.shape[0],1).T
-    resBottom=numpy.matlib.repmat(resMat[:,1]+resMat[:,3]-1,gtMat.shape[0],1).T
-    resWidth=numpy.matlib.repmat(resMat[:,2],gtMat.shape[0],1).T
-    resHeight=numpy.matlib.repmat(resMat[:,3],gtMat.shape[0],1).T
+    subMat=subMatLTWH
+    gtLeft=numpy.matlib.repmat(gtMat[:,0],subMat.shape[0],1)
+    gtTop=numpy.matlib.repmat(gtMat[:,1],subMat.shape[0],1)
+    gtRight=numpy.matlib.repmat(gtMat[:,0]+gtMat[:,2]-1,subMat.shape[0],1)
+    gtBottom=numpy.matlib.repmat(gtMat[:,1]+gtMat[:,3]-1,subMat.shape[0],1)
+    gtWidth=numpy.matlib.repmat(gtMat[:,2],subMat.shape[0],1)
+    gtHeight=numpy.matlib.repmat(gtMat[:,3],subMat.shape[0],1)
+    resLeft=numpy.matlib.repmat(subMat[:,0],gtMat.shape[0],1).T
+    resTop=numpy.matlib.repmat(subMat[:,1],gtMat.shape[0],1).T
+    resRight=numpy.matlib.repmat(subMat[:,0]+subMat[:,2]-1,gtMat.shape[0],1).T
+    resBottom=numpy.matlib.repmat(subMat[:,1]+subMat[:,3]-1,gtMat.shape[0],1).T
+    resWidth=numpy.matlib.repmat(subMat[:,2],gtMat.shape[0],1).T
+    resHeight=numpy.matlib.repmat(subMat[:,3],gtMat.shape[0],1).T
     intL=np.max([resLeft,gtLeft],axis=0)
     intT=np.max([resTop,gtTop],axis=0)
     intR=np.min([resRight,gtRight],axis=0)
@@ -173,7 +173,7 @@ def get4pEndToEndMetric(gtSubmFdataTuples,**kwargs):
     FM=(2*precision*recall)/(precision+recall+.00000000000001)
     return FM,precision,recall
 
-    
+
 def get2pEndToEndMetric(gtSubmFdataTuples,**kwargs):
     p={'dontCare':'###','iouThr':.5,'maxEdist':0}
     p.update(kwargs)

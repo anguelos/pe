@@ -153,6 +153,7 @@ def filterDontCares(IoU,edDist,gtTrans,dontCare):
 
 
 def get4pEndToEndMetric(gtSubmFdataTuples,**kwargs):
+    e=.00000000000001
     p={'dontCare':'###','iouThr':.5,'maxEdist':0}
     p.update(kwargs)
     allRelevant=0
@@ -168,13 +169,14 @@ def get4pEndToEndMetric(gtSubmFdataTuples,**kwargs):
         allRelevant+=IoU.shape[0]
         allRetrieved+=IoU.shape[1]
         correct+=np.sum((IoU>=p['iouThr'])*(edDist<=p['maxEdist'])*maskNonMaximalIoU(IoU,1))
-    precision=float(correct)/allRetrieved
-    recall=float(correct)/allRelevant
-    FM=(2*precision*recall)/(precision+recall+.00000000000001)
+    precision=float(correct)/(allRetrieved+e)
+    recall=float(correct)/(allRelevant+e)
+    FM=(2*precision*recall)/(precision+recall+e)
     return FM,precision,recall
 
 
 def get2pEndToEndMetric(gtSubmFdataTuples,**kwargs):
+    e=.00000000000001
     p={'dontCare':'###','iouThr':.5,'maxEdist':0}
     p.update(kwargs)
     allRelevant=0
@@ -194,9 +196,9 @@ def get2pEndToEndMetric(gtSubmFdataTuples,**kwargs):
         allRelevant+=IoU.shape[0]
         allRetrieved+=IoU.shape[1]
         correct+=np.sum((IoU>=p['iouThr'])*(edDist<=p['maxEdist'])*maskNonMaximalIoU(IoU,1))
-    precision=float(correct)/allRetrieved
-    recall=float(correct)/allRelevant
-    FM=(2*precision*recall)/(precision+recall+.00000000000001)
+    precision=float(correct)/(allRetrieved+e)
+    recall=float(correct)/(allRelevant+e)
+    FM=(2*precision*recall)/(precision+recall+e)
     return FM,precision,recall
 
 

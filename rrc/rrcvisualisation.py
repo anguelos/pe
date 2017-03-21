@@ -13,7 +13,7 @@ import numpy as np
 import os
 import time
 from commands import getoutput as go #fast access to the shell
-
+from matplotlib import pyplot as plt
 
 try:
     import cv2
@@ -29,6 +29,11 @@ except:
 
 import rrcmetrics
 import rrcio
+
+
+def plot4p(points,col='r'):
+    for k in range(points.shape[0]):
+        plt.plot(points[k,[0,2,4,6,0]],points[k,[1,3,5,7,1]],c=col)
 
 
 def get2pEndToEndVisualisationData(idSubmGt,**kwargs):

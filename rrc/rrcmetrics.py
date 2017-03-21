@@ -50,24 +50,25 @@ def getPixelIoU(gtImg,submImg):
 
 
 def get4pointIoU(gtMat,sampleMat):
+    e=.0000000000000001
     iMat=np.zeros([gtMat.shape[0],sampleMat.shape[0]])
     uMat=np.zeros([gtMat.shape[0],sampleMat.shape[0]])
     gtAreas=np.zeros(gtMat.shape[0])
     gtPolList=[]
     gtAreas=np.zeros(gtMat.shape[0])
     for gtPolNum in range(gtMat.shape[0]):
-        gtPolList.append(plg.Polygon(gtMat[gtPolNum].reshape([2,-1]).T))
+        gtPolList.append(plg.Polygon(gtMat[gtPolNum,:].reshape([4,2])))
         gtAreas[gtPolNum]=gtPolList[-1].area()
     samplePolList=[]
     sampleAreas=np.zeros(sampleMat.shape[0])
     for samplePolNum in range(sampleMat.shape[0]):
-        samplePolList.append(plg.Polygon(sampleMat[samplePolNum].reshape([2,-1]).T))
+        samplePolList.append(plg.Polygon(sampleMat[samplePolNum,:].reshape([4,2])))
         sampleAreas[samplePolNum]=samplePolList[-1].area()
     for submPolNum in range(sampleMat.shape[0]):
         for gtPolNum in range(gtMat.shape[0]):
-            iMat[gtPolNum,submPolNum]=(samplePolList[submPolNum]&(samplePolList[submPolNum])).area()
-            uMat[gtPolNum,submPolNum]=(samplePolList[submPolNum]|(samplePolList[submPolNum])).area()
-    return [iMat/(uMat+.0000000000000001),iMat,uMat]
+            iMat[gtPolNum,submPolNum]=(gtPolList[gtPolNum]&(samplePolList[submPolNum])).area()
+            uMat[gtPolNum,submPolNum]=(gtPolList[gtPolNum]|(samplePolList[submPolNum])).area()
+    return [iMat/(uMat+e),iMat,uMat]
 
 
 def getEditDistanceMat(gtTranscriptions,sampleTranscriptions):
@@ -154,7 +155,7 @@ def filterDontCares(IoU,edDist,gtTrans,dontCare):
 
 def get4pEndToEndMetric(gtSubmFdataTuples,**kwargs):
     e=.00000000000001
-    p={'dontCare':'###','iouThr':.5,'maxEdist':0}
+    p={'dontCare':'###','iouThr':.5,'maxEdist':0,'caseInsencitive':True}
     p.update(kwargs)
     allRelevant=0
     allRetrieved=0
@@ -162,6 +163,11 @@ def get4pEndToEndMetric(gtSubmFdataTuples,**kwargs):
     for gtStr,submStr in gtSubmFdataTuples:
         gtLoc,gtTrans=rrcio.loadBBoxTranscription(gtStr)
         submLoc,submTrans=rrcio.loadBBoxTranscription(submStr)
+        if p['caseInsencitive']:
+            for k in range(gtTrans.shape[0]):
+                gtTrans[k]=gtTrans[k].lower()
+            for k in range(submTrans.shape[0]):
+                submTrans[k]=submTrans[k].lower()
         IoU=get4pointIoU(gtLoc,submLoc)[0]
         edDist=getEditDistanceMat(gtTrans,submTrans)[0]
         if p['dontCare']!='':

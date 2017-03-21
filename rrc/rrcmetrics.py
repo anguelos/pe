@@ -164,10 +164,10 @@ def get4pEndToEndMetric(gtSubmFdataTuples,**kwargs):
         gtLoc,gtTrans=rrcio.loadBBoxTranscription(gtStr)
         submLoc,submTrans=rrcio.loadBBoxTranscription(submStr)
         if p['caseInsencitive']:
-            for k in range(gtTrans.shape[0]):
-                gtTrans[k]=gtTrans[k].lower()
-            for k in range(submTrans.shape[0]):
-                submTrans[k]=submTrans[k].lower()
+            gtTrans=[t.lower() for t in gtTrans]
+            submTrans=[t.lower() for t in submTrans]
+        gtTrans=np.array(gtTrans,dtype='object')
+        submTrans=np.array(submTrans,dtype='object')
         IoU=get4pointIoU(gtLoc,submLoc)[0]
         edDist=getEditDistanceMat(gtTrans,submTrans)[0]
         if p['dontCare']!='':

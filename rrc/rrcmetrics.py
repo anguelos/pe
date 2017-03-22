@@ -10,7 +10,7 @@ pip install (--user) Pillow (if cv2 is not available)
 """
 import numpy.matlib
 import numpy as np
-#import re
+import re
 import sys
 #import time
 #import json
@@ -155,7 +155,7 @@ def filterDontCares(IoU,edDist,gtTrans,dontCare):
 
 def get4pEndToEndMetric(gtSubmFdataTuples,**kwargs):
     e=.00000000000001
-    p={'dontCare':'###','iouThr':.5,'maxEdist':0,'caseInsencitive':True}
+    p={'dontCare':'###','iouThr':.5,'maxEdist':0,'caseInsencitive':True,'ignoreChars':"[@!?\.,%]|\'[sS]"}
     p.update(kwargs)
     allRelevant=0
     allRetrieved=0
@@ -166,6 +166,10 @@ def get4pEndToEndMetric(gtSubmFdataTuples,**kwargs):
         if p['caseInsencitive']:
             gtTrans=[t.lower() for t in gtTrans]
             submTrans=[t.lower() for t in submTrans]
+        if p['ignoreChars']:
+            punctuationRe=re.compile(p['ignoreChars'])
+            gtTrans=[punctuationRe.sub('',t) for t in gtTrans]
+            submTrans=[punctuationRe.sub('',s) for s in submTrans]
         gtTrans=np.array(gtTrans,dtype='object')
         submTrans=np.array(submTrans,dtype='object')
         IoU=get4pointIoU(gtLoc,submLoc)[0]

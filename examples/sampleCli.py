@@ -39,7 +39,8 @@ if __name__=='__main__':
 
     if sys.argv[1]=='icdarCh4Task4':
         gtFnameLambda = (lambda fname:(sys.argv[2]%(fname.split('/')[-1].split('.')[0])))
-        gtSampleDataTuples=[(open(gtFnameLambda(f)).read(),open(f).read()) for f in sys.argv[3:]]
+        fnameList=[f[1] for f in sorted([(int(f.split('img_')[-1].split('.')[0]),f ) for f in  sys.argv[3:]])]
+        gtSampleDataTuples=[(open(gtFnameLambda(f)).read(),open(f).read()) for f in fnameList]
         fm,pr,rec=get4pEndToEndMetric(gtSampleDataTuples,dontCare='###')
         print 'Precision: %3.2f\nRecall   : %3.2f\nF-Measure: %3.2f'%(pr,rec,fm)
         sys.exit(0)

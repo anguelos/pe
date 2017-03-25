@@ -143,8 +143,8 @@ def filterDontCares(IoU,edDist,gtTrans,dontCare):
     """
     if edDist is None:
         edDist=np.empty(IoU.shape)
-    if IoU.shape[0]==0 or IoU.shape[1]==0:
-        return IoU,edDist
+    #if IoU.shape[0]==0 or IoU.shape[1]==0:
+    #    return IoU,edDist
     removeGt=np.where(gtTrans==dontCare)[0].tolist()
     highestIoUPos=np.argmax(IoU,axis=0)
     removeSubm=[k for k in range(IoU.shape[1]) if (highestIoUPos[k] in removeGt)]

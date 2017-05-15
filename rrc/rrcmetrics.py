@@ -213,11 +213,29 @@ def get2pEndToEndMetric(gtSubmFdataTuples,**kwargs):
 
 
 def getFSNSMetrics(gtIdTransDict,methodIdTransDict):
+    """Provides metrics for the FSNS dataset. 
+    FM, precision, recall and correctSequences are an implementation of the metrics described in
+    "End-to-End Interpretation of the French Street Name Signs Dataset"
+    [https://link.springer.com/chapter/10.1007%2F978-3-319-46604-0_30]
+
+
+    Params:
+        gtIdTransDict : sample_id to data dictionary. A simple file name to file contents might do.
+        methodIdTransDict : sample_id to data dictionary. A simple file name to file contents might do.
+    
+    returns:
+        A tuple with floats between 0 and 1 with all worth reporting measurements.
+        FM, Precision, Recall, global correct word trascriptions, if someone returned 
+        "rue" as the transcription of every image, assuming half the images have it, he 
+        would get a precision of 50%, a recall of ~5% and an FM of ~9.1%.
+        He would get a correctSequences score of 0%, and a similarity of e%.
+    """
     def compareTexts(sampleTxt,gtTxt):
         relevant=gtTxt.lower().split()
         retrieved=sampleTxt.lower().split()
         correct=(set(relevant).intersection(set(retrieved)))
-        res=(len(correct),len(relevant),len(retrieved),relevant!=retrieved)
+        similarity=1.0/(1+editdistance.eval(gtTxt.lower(),sampleTxt.lower()))
+        res=(len(correct),len(relevant),len(retrieved),relevant!=retrieved,similarity)
         return res
     mDict={k:'' for k in gtIdTransDict.keys()}
     mDict.update(methodIdTransDict)
@@ -227,11 +245,14 @@ def getFSNSMetrics(gtIdTransDict,methodIdTransDict):
     if len(methodKeys)!= len(set(methodKeys))  or len(gtKeys)!= len(set(gtKeys)) or len(set(methodKeys)-set(gtKeys))>0 :#gt and method dissagree on samples
         sys.stderr.write("GT and submission dissagree on the sample ids\n")
         sys.exit(1)
-    corectRelevantRetrieved=np.zeros([len(gtKeys),4])
+    corectRelevantRetrievedSimilarity=np.zeros([len(gtKeys),5],dtype='float32')
     for k in range(len(gtKeys)):
         sId=gtKeys[k]
-        corectRelevantRetrieved[k,:]=compareTexts(methodIdTransDict[sId],gtIdTransDict[sId])
+        corectRelevantRetrievedSimilarity[k,:]=compareTexts(methodIdTransDict[sId],gtIdTransDict[sId])
     precision=(corectRelevantRetrieved[:,0].sum()/(corectRelevantRetrieved[:,1].sum()))
     recall=(corectRelevantRetrieved[:,0].sum()/(corectRelevantRetrieved[:,2].sum()))
     FM=(2*precision*recall)/(precision+recall)
-    return FM,precision,recall,float(corectRelevantRetrieved[:,3].mean()),corectRelevantRetrieved
+    correctSequences=corectRelevantRetrieved[:,3].mean()
+    similarity=corectRelevantRetrieved[:,4].mean()
+    combinedSoftMetric=(1-FM)*FM+FM*similarity#The better FM is, the less it maters in the overall score
+    return combinedSoftMetric,FM,precision,recall,similarity,correctSequences

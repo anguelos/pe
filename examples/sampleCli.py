@@ -64,12 +64,12 @@ if __name__=='__main__':
     if sys.argv[1]=='fsnsMetrics':
         gtFname=sys.argv[2]
         gtDict=json.loads(open(gtFname).read())
-        print '|     Method | Precision |   Recall  |  F-Measure |  Seq. Err |'
+        print '|     Method | Precision |   Recall  |  F-Measure |  Seq. Err |  Combined |'
         for methodName in sys.argv[3:]:
             submissionDict=json.loads(open(methodName).read())
-            FM,precision,recall,seqErr=getFSNSMetrics(submissionDict,gtDict)[:4]
+            combinedSoftMetric,FM,precision,recall,seqErr=getFSNSMetrics(submissionDict,gtDict)[:5]
             name=methodName.split('/')[-1].split('.')[0]
-            print '| %10s |     %5.2f |     %5.2f |      %5.2f |     %05.2f |'%(name,precision*100,recall*100,FM*100,seqErr*100)
+            print '| %10s |     %5.2f |     %5.2f |      %5.2f |     %05.2f |     %05.2f |'%(name,precision*100,recall*100,FM*100,seqErr*100,combinedSoftMetric*100)
             #ofname='.'.join(methodName.split('.')[:-1])+'.evaluation.json'
         sys.exit(0)
     print 'Unknown option '+sys.argv[1]+'  !Aborting!'

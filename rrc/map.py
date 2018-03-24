@@ -21,7 +21,7 @@ def get_map(labels,distance_matrix=None,embeddings=None,metric='euclidean'):
     if distance_matrix is None:
         if embeddings is None:
             raise ValueError()
-        assert
+        assert labels.size==embeddings.shape[0]
         distance_matrix=scipy.spatial.distance.pdist(embeddings,metric=metric)
 
     precision_at, correct_retrievals= get_precision_at_matrix(distance_matrix,labels,self_distance=True)

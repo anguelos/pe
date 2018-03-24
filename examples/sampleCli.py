@@ -22,10 +22,16 @@ getFCNReport:
     file1 file2 ... fileN
     The program generates an HTML report for 2point rectangles the output 
     directory must not exist.
+
 fsnsMetrics:
     """+name+""" fsnsMetrics gtFile submission1 submission2 ... submissionN
     Both submission and gt files contain dictionaries mapping sample-image
     filenames to transcriptions in json format.
+
+mAP:
+    """+name+""" mAP embedding_tsv_file.
+    The tsv will have onw row per entity, the first column will be a a number or string representing the class and all
+    other columns are the embedding. 
     """
     out.write(helpStr)
 
@@ -37,12 +43,12 @@ if __name__=='__main__':
         printHelp()
         sys.exit(0)
 
-    if sys.argv[1]=='icdarCh4Task4':
-        gtFnameLambda = (lambda fname:(sys.argv[2]%(fname.split('/')[-1].split('.')[0])))
-        fnameList=[f[1] for f in sorted([(int(f.split('img_')[-1].split('.')[0]),f ) for f in  sys.argv[3:]])]
-        gtSampleDataTuples=[(open(gtFnameLambda(f)).read(),open(f).read()) for f in fnameList]
-        fm,pr,rec=get4pEndToEndMetric(gtSampleDataTuples,dontCare='###')
-        print 'Precision: %3.2f\nRecall   : %3.2f\nF-Measure: %3.2f'%(pr,rec,fm)
+    if sys.argv[1].lower()=='map':
+        lines = [l.split("\t") for l in  open(sys.argv[2]).read().strip().split("\n") if l[0]!='#']
+        labels = np.array([l[0] for l in lines],dtype=str)
+        embeddings = np.array([[float(col) for col in l[1:]] for l in lines])
+        mAP,AP=map.get_map(labels=labels, embeddings=embeddings)
+        print 'mAP: %5.3f\n'%(mAP)
         sys.exit(0)
 
     if sys.argv[1]=='icdarCh2Task4':

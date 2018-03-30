@@ -3,6 +3,8 @@
 import sys
 
 from rrc import *
+import rrc
+import rrc.map
 
 def printHelp(out=sys.stdout):
     name=sys.argv[0].split('/')[-1]
@@ -47,8 +49,8 @@ if __name__=='__main__':
         lines = [l.split("\t") for l in  open(sys.argv[2]).read().strip().split("\n") if l[0]!='#']
         labels = np.array([l[0] for l in lines],dtype=str)
         embeddings = np.array([[float(col) for col in l[1:]] for l in lines])
-        mAP,AP=map.get_map(labels=labels, embeddings=embeddings)
-        print 'mAP: %5.3f\n'%(mAP)
+        mAP,AP,pMat=rrc.map.get_map(labels=labels, embeddings=embeddings)
+        print 'mAP: %8.5f|P@1: %8.5f\n'%(mAP,pMat[:,0].mean())
         sys.exit(0)
 
     if sys.argv[1]=='icdarCh2Task4':

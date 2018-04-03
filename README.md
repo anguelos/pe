@@ -1,4 +1,14 @@
-###RRC
+### Generic retrival
+
+This code contains a python implemetation of the mAP metric for retrieval. Demo code can be run with:
+```bash
+python ./examples/sampleCli.py  map ./examples/data/map/gw_phonet.tsv
+```
+
+The core implementation file is in ./rrc/map.py
+The function get_precision_at_recall_at_matrices provides precision and recall matrices that can be used for several metric computations.
+
+### RRC
 
 This code contains a python implemetation of performance evaluation metrics for text localisation and recognition evaluation.
 
